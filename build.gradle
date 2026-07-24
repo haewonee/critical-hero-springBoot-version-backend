@@ -35,6 +35,17 @@ dependencies {
 	testCompileOnly 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testAnnotationProcessor 'org.projectlombok:lombok'
+
+	implementation 'com.slack.api:bolt:1.44.2'
+	implementation 'com.slack.api:bolt-socket-mode:1.44.2'
+	implementation 'javax.websocket:javax.websocket-api:1.1'
+	implementation 'org.glassfish.tyrus.bundles:tyrus-standalone-client:1.20'
+
+	implementation 'org.springframework.boot:spring-boot-starter-webflux'
+
+	implementation 'org.kohsuke:github-api:1.326'
+
+	implementation 'com.pgvector:pgvector:0.1.6'
 }
 
 dependencyManagement {
