@@ -4,37 +4,44 @@ import com.devassistant.critical_hero_springboot_version.domain.commit.entity.Co
 import com.devassistant.critical_hero_springboot_version.domain.commit.repository.CommitRepository;
 import com.devassistant.critical_hero_springboot_version.domain.github.entity.GithubRepo;
 import com.devassistant.critical_hero_springboot_version.domain.github.repository.GithubRepoRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.kohsuke.github.GHCommit;
-import org.kohsuke.github.GHRepository;
-import org.kohsuke.github.GitHub;
-import org.kohsuke.github.GitHubBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClient;
 
-import java.io.IOException;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class GithubCommandService {
 
     private final GithubRepoRepository githubRepoRepository;
     private final CommitRepository commitRepository;
+    private final WebClient webClient;
+    private final String defaultRepo;
 
-    @Value("${github.token}")
-    private String githubToken;
-
-    @Value("${github.repo}")
-    private String defaultRepo;
+    public GithubCommandService(
+            GithubRepoRepository githubRepoRepository,
+            CommitRepository commitRepository,
+            @Value("${github.token}") String githubToken,
+            @Value("${github.repo}") String defaultRepo
+    ) {
+        this.githubRepoRepository = githubRepoRepository;
+        this.commitRepository = commitRepository;
+        this.defaultRepo = defaultRepo;
+        this.webClient = WebClient.builder()
+                .baseUrl("https://api.github.com")
+                .defaultHeader("Authorization", "Bearer " + githubToken)
+                .defaultHeader("Accept", "application/vnd.github+json")
+                .build();
+    }
 
     @Transactional
-    public GithubRepo indexRepository() throws IOException {
+    public GithubRepo indexRepository() {
         String[] parts = defaultRepo.split("/");
         String owner = parts[0];
         String name = parts[1];
@@ -47,52 +54,66 @@ public class GithubCommandService {
                                 .build()
                 ));
 
-        GitHub github = new GitHubBuilder().withOAuthToken(githubToken).build();
-        GHRepository ghRepo = github.getRepository(defaultRepo);
-        List<GHCommit> commits = ghRepo.listCommits().withPageSize(20).toList();
+        // 커밋 목록 조회 (최근 20개)
+        List<Map> commits = webClient.get()
+                .uri("/repos/{owner}/{repo}/commits?per_page=20", owner, name)
+                .retrieve()
+                .bodyToFlux(Map.class)
+                .collectList()
+                .block();
 
-        for (GHCommit ghCommit : commits) {
-            String sha = ghCommit.getSHA1();
+        for (Map commitSummary : commits) {
+            String sha = (String) commitSummary.get("sha");
 
             if (commitRepository.existsBySha(sha)) {
                 log.info("커밋 이미 존재, 스킵: {}", sha);
                 continue;
             }
 
-            LocalDateTime committedAt = ghCommit.getCommitDate()
-                    .toInstant()
-                    .atZone(ZoneId.systemDefault())
-                    .toLocalDateTime();
+            // 커밋 상세 조회 (diff 포함)
+            Map commitDetail = webClient.get()
+                    .uri("/repos/{owner}/{repo}/commits/{sha}", owner, name, sha)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
 
-            Commit commit = Commit.builder()
-                    .repo(repo)
-                    .sha(sha)
-                    .author(ghCommit.getCommitShortInfo().getAuthor().getName())
-                    .message(ghCommit.getCommitShortInfo().getMessage())
-                    .diff(fetchDiff(ghCommit))
-                    .committedAt(committedAt)
-                    .build();
+            Map commitInfo = (Map) commitDetail.get("commit");
+            Map authorInfo = (Map) commitInfo.get("author");
 
-            commitRepository.save(commit);
+            String message = (String) commitInfo.get("message");
+            String author = (String) authorInfo.get("name");
+            LocalDateTime committedAt = OffsetDateTime.parse((String) authorInfo.get("date")).toLocalDateTime();
+            String diff = fetchDiff(commitDetail);
+
+            commitRepository.save(
+                    Commit.builder()
+                            .repo(repo)
+                            .sha(sha)
+                            .author(author)
+                            .message(message)
+                            .diff(diff)
+                            .committedAt(committedAt)
+                            .build()
+            );
             log.info("커밋 저장: {}", sha);
         }
 
         return repo;
     }
 
-    private String fetchDiff(GHCommit ghCommit) {
-        try {
-            StringBuilder sb = new StringBuilder();
-            for (GHCommit.File file : ghCommit.listFiles().toList()) {
-                sb.append("파일: ").append(file.getFileName()).append("\n");
-                if (file.getPatch() != null) {
-                    sb.append(file.getPatch()).append("\n");
-                }
+    // 커밋 상세 응답의 files 배열에서 patch(diff)를 추출
+    private String fetchDiff(Map commitDetail) {
+        List<Map> files = (List<Map>) commitDetail.get("files");
+        if (files == null) return "";
+
+        StringBuilder sb = new StringBuilder();
+        for (Map file : files) {
+            sb.append("파일: ").append(file.get("filename")).append("\n");
+            String patch = (String) file.get("patch");
+            if (patch != null) {
+                sb.append(patch).append("\n");
             }
-            return sb.toString();
-        } catch (IOException e) {
-            log.warn("diff 가져오기 실패: {}", ghCommit.getSHA1());
-            return "";
         }
+        return sb.toString();
     }
 }

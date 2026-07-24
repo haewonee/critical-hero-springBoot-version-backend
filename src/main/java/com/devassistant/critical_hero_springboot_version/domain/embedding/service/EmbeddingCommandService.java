@@ -2,11 +2,12 @@ package com.devassistant.critical_hero_springboot_version.domain.embedding.servi
 
 import com.devassistant.critical_hero_springboot_version.domain.commit.entity.Commit;
 import com.devassistant.critical_hero_springboot_version.domain.commit.repository.CommitRepository;
-import com.devassistant.critical_hero_springboot_version.domain.embedding.entity.CommitEmbedding;
 import com.devassistant.critical_hero_springboot_version.domain.embedding.repository.CommitEmbeddingRepository;
 import com.devassistant.critical_hero_springboot_version.global.client.OpenAiClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.postgresql.util.PGobject;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ public class EmbeddingCommandService {
     private final CommitRepository commitRepository;
     private final CommitEmbeddingRepository commitEmbeddingRepository;
     private final OpenAiClient openAiClient;
+    private final JdbcTemplate jdbcTemplate;
 
     @Transactional
     public void embedAllCommits() {
@@ -35,13 +37,21 @@ public class EmbeddingCommandService {
             float[] embedding = openAiClient.createEmbedding(text);
             String vectorString = openAiClient.toVectorString(embedding);
 
-            commitEmbeddingRepository.save(
-                    CommitEmbedding.builder()
-                            .commit(commit)
-                            .embedding(vectorString)
-                            .build()
-            );
-            log.info("임베딩 저장 완료: {}", commit.getSha());
+            // Hibernate가 PGobject → bytea로 잘못 변환하는 문제 때문에
+            // JDBC 레벨에서 직접 vector 타입으로 INSERT
+            try {
+                PGobject pgVector = new PGobject();
+                pgVector.setType("vector");
+                pgVector.setValue(vectorString);
+
+                jdbcTemplate.update(
+                        "INSERT INTO commit_embeddings (commit_id, embedding, created_at, updated_at) VALUES (?, ?, NOW(), NOW())",
+                        commit.getId(), pgVector
+                );
+                log.info("임베딩 저장 완료: {}", commit.getSha());
+            } catch (Exception e) {
+                throw new RuntimeException("임베딩 저장 실패: " + commit.getSha(), e);
+            }
         }
     }
 }
