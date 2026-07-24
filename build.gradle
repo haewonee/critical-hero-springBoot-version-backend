@@ -45,7 +45,6 @@ dependencies {
 
 	implementation 'org.kohsuke:github-api:1.326'
 
-	implementation 'com.pgvector:pgvector:0.1.6'
 }
 
 dependencyManagement {
