@@ -26,9 +26,10 @@ public class WebhookController {
             return ResponseEntity.ok().build();
         }
 
-        // Agent가 생성한 fix/ 브랜치 push는 무시 (무한루프 방지)
-        if (payload.ref != null && payload.ref.contains("/fix/")) {
-            log.info("Agent 생성 브랜치 push 무시: {}", payload.ref);
+        // main/master 브랜치가 아닌 push는 무시 (Agent fix/ 브랜치, PR merge 등 무한루프 방지)
+        if (payload.ref == null ||
+                (!payload.ref.equals("refs/heads/main") && !payload.ref.equals("refs/heads/master"))) {
+            log.info("main 브랜치 아닌 push 무시: {}", payload.ref);
             return ResponseEntity.ok().build();
         }
 

@@ -100,19 +100,41 @@ public class SlackEventHandler {
                         return;
                     }
 
-                    // Agent로 수정 코드 생성
-                    String agentQuestion = String.format(
-                            "%s 파일의 보안 및 품질 문제를 수정한 코드를 작성해줘. PR은 직접 생성하지 말고 수정된 코드만 알려줘. 현재 코드:\n%s",
-                            filePath, currentContent
-                    );
-                    String fixedCode = agentService.run(agentQuestion);
+                    // Agent로 수정 코드 + 설명 생성 (JSON 형식 강제)
+                    String agentQuestion = String.format("""
+                            아래 파일의 보안 및 품질 문제를 분석하고 수정해줘.
+                            반드시 아래 형식으로만 답해줘. 다른 말은 하지 마:
+
+                            ISSUES:
+                            (이 파일에서 발견한 문제점을 구체적으로 항목별 작성)
+                            FIXED_DESCRIPTION:
+                            (무엇을 왜 어떻게 수정했는지 구체적으로 항목별 작성)
+                            FIXED_CODE:
+                            (수정된 파일의 전체 코드만. 설명, 마크다운, 코드블록 없이 코드만)
+
+                            파일명: %s
+                            현재 코드:
+                            %s
+                            """, filePath, currentContent);
+                    String agentResponse = agentService.run(agentQuestion);
+
+                    // 섹션 분리
+                    String foundIssues = extractSection(agentResponse, "ISSUES:", "FIXED_DESCRIPTION:");
+                    String fixDescription = extractSection(agentResponse, "FIXED_DESCRIPTION:", "FIXED_CODE:");
+                    String fixedCode = extractSection(agentResponse, "FIXED_CODE:", null);
+                    String prBody = foundIssues + "\n\n" + fixDescription;
+
+                    if (fixedCode.isBlank()) {
+                        ctx.respond("코드 수정에 실패했습니다. 다시 시도해 주세요.");
+                        return;
+                    }
 
                     // PR 생성 후 URL 받기
                     String prUrl = githubAgentTools.createPullRequestAndGetUrl(
                             filePath,
                             fixedCode,
                             filePath + " 보안 및 품질 문제 수정",
-                            "Critical Hero AI Agent가 감지한 보안 취약점 및 코드 품질 문제를 수정했습니다."
+                            prBody
                     );
 
                     // PR 링크 버튼으로 응답
@@ -148,12 +170,24 @@ public class SlackEventHandler {
             return ctx.ack();
         });
 
-        // PR 링크 버튼은 URL 클릭이라 별도 처리 불필요 (Slack이 자동으로 열어줌)
         slackApp.blockAction("open_pr_link", (req, ctx) -> ctx.ack());
 
         socketModeApp = new SocketModeApp(appToken, slackApp);
         socketModeApp.startAsync();
         log.info("Slack Socket Mode 앱 시작됨");
+    }
+
+    // Agent 응답에서 특정 섹션 추출
+    private String extractSection(String text, String startMarker, String endMarker) {
+        int start = text.indexOf(startMarker);
+        if (start == -1) return text;
+        start += startMarker.length();
+
+        if (endMarker != null) {
+            int end = text.indexOf(endMarker, start);
+            return end == -1 ? text.substring(start).trim() : text.substring(start, end).trim();
+        }
+        return text.substring(start).trim();
     }
 
     @PreDestroy
