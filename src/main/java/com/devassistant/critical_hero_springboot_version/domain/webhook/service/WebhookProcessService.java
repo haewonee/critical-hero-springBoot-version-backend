@@ -59,19 +59,29 @@ public class WebhookProcessService {
 
         for (GithubWebhookPayload.CommitPayload commit : payload.commits) {
             try {
-                // Agent가 생성한 커밋은 스킵 (무한루프 방지)
-                if (commit.message != null && commit.message.contains("[auto]")) {
-                    log.info("Agent 자동 생성 커밋 스킵: {}", commit.id);
-                    continue;
-                }
-
                 // 이미 처리된 커밋이면 스킵 (중복 알림 방지)
                 if (commitRepository.existsBySha(commit.id)) {
                     log.info("이미 처리된 커밋 스킵: {}", commit.id);
                     continue;
                 }
 
-                String diff = fetchDiff(repo, commit.id);
+                // GitHub API로 커밋 상세 조회
+                Map commitDetail = fetchCommitDetail(repo, commit.id);
+
+                // Merge 커밋 스킵: parents가 2개 이상이면 머지 커밋
+                List<Map> parents = (List<Map>) commitDetail.get("parents");
+                if (parents != null && parents.size() >= 2) {
+                    log.info("Merge 커밋 스킵 (parents={}): {}", parents.size(), commit.id);
+                    continue;
+                }
+
+                // Agent 자동 생성 커밋 스킵
+                if (commit.message != null && commit.message.contains("[auto]")) {
+                    log.info("Agent 자동 생성 커밋 스킵: {}", commit.id);
+                    continue;
+                }
+
+                String diff = extractDiff(commitDetail);
                 String author = commit.author != null ? commit.author.name : "unknown";
 
                 // 1. 위험도 분석
@@ -129,18 +139,18 @@ public class WebhookProcessService {
         embeddingCommandService.embedSingleCommit(commit);
     }
 
-    // GitHub API로 특정 커밋의 diff 조회
-    private String fetchDiff(String repo, String sha) {
+    // GitHub API로 커밋 상세 조회 (parents 포함)
+    private Map fetchCommitDetail(String repo, String sha) {
         String[] parts = repo.split("/");
-        String owner = parts[0];
-        String name = parts[1];
-
-        Map commitDetail = githubClient.get()
-                .uri("/repos/{owner}/{repo}/commits/{sha}", owner, name, sha)
+        return githubClient.get()
+                .uri("/repos/{owner}/{repo}/commits/{sha}", parts[0], parts[1], sha)
                 .retrieve()
                 .bodyToMono(Map.class)
                 .block();
+    }
 
+    // 커밋 상세에서 diff 문자열 추출
+    private String extractDiff(Map commitDetail) {
         List<Map> files = (List<Map>) commitDetail.get("files");
         if (files == null) return "";
 
