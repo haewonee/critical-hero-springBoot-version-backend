@@ -59,6 +59,18 @@ public class WebhookProcessService {
 
         for (GithubWebhookPayload.CommitPayload commit : payload.commits) {
             try {
+                // Merge 커밋 스킵 (중복 알림 방지)
+                if (commit.message != null && commit.message.startsWith("Merge")) {
+                    log.info("Merge 커밋 스킵: {}", commit.id);
+                    continue;
+                }
+
+                // 이미 처리된 커밋이면 스킵 (중복 알림 방지)
+                if (commitRepository.existsBySha(commit.id)) {
+                    log.info("이미 처리된 커밋 스킵: {}", commit.id);
+                    continue;
+                }
+
                 String diff = fetchDiff(repo, commit.id);
                 String author = commit.author != null ? commit.author.name : "unknown";
 
