@@ -2,8 +2,7 @@ package com.devassistant.critical_hero_springboot_version.global.slack;
 
 import com.slack.api.bolt.App;
 import com.slack.api.bolt.socket_mode.SocketModeApp;
-import com.devassistant.critical_hero_springboot_version.domain.analysis.dto.res.AnalysisResDto;
-import com.devassistant.critical_hero_springboot_version.domain.analysis.service.AnalysisQueryService;
+import com.devassistant.critical_hero_springboot_version.global.agent.AgentService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +21,7 @@ import java.util.Set;
 public class SlackEventHandler {
 
     private final App slackApp;
-    private final AnalysisQueryService analysisQueryService;
+    private final AgentService agentService;
 
     @Value("${slack.app-token}")
     private String appToken;
@@ -41,47 +40,35 @@ public class SlackEventHandler {
 
     @PostConstruct
     public void start() throws Exception {
-        // @Critical-hero 멘션 이벤트 처리
         slackApp.event(com.slack.api.model.event.AppMentionEvent.class, (payload, ctx) -> {
             String text = payload.getEvent().getText();
 
-            // 중복 이벤트 무시 (Slack은 동일 이벤트에 같은 event_ts 부여)
+            // 중복 이벤트 무시
             String eventId = payload.getEvent().getEventTs();
             if (eventId != null && !processedEventIds.add(eventId)) {
                 log.info("중복 이벤트 무시: {}", eventId);
                 return ctx.ack();
             }
 
-            // 멘션 부분 제거 후 질문 추출 (<@BOTID> 제거)
+            // 멘션 제거 후 질문 추출
             String question = text.replaceAll("<@[A-Z0-9]+>", "").trim();
             log.info("Slack 멘션 수신 - 질문: {}", question);
 
-            // Slack 3초 타임아웃 안에 먼저 ack 응답
             var ackResponse = ctx.ack();
 
             if (question.isEmpty()) {
-                ctx.say("질문을 입력해 주세요. 예: @Critical-hero 결제 모듈에서 500 에러가 발생했는데 왜 그럴까?");
+                ctx.say("질문을 입력해 주세요.\n예: @Critical-hero 결제 모듈 버그 왜 났어?\n예: @Critical-hero payment.py null 체크 추가해줘");
                 return ackResponse;
             }
 
-            ctx.say("분석 중입니다... 잠시만 기다려 주세요.");
+            ctx.say("분석 중입니다... 잠시만 기다려 주세요. 🤖");
 
             try {
-                AnalysisResDto.Result result = analysisQueryService.analyze(question);
-
-                StringBuilder response = new StringBuilder();
-                response.append("*질문:* ").append(question).append("\n\n");
-                response.append("*관련 커밋:*\n");
-                result.relatedCommits().forEach(commit ->
-                        response.append("• `").append(commit.sha(), 0, 7).append("` ")
-                                .append(commit.message()).append("\n")
-                );
-                response.append("\n*분석 결과:*\n").append(result.analysisResult());
-
-                ctx.say(response.toString());
+                String result = agentService.run(question);
+                ctx.say(result);
             } catch (Exception e) {
-                log.error("분석 중 오류 발생", e);
-                ctx.say("분석 중 오류가 발생했습니다: " + e.getMessage());
+                log.error("Agent 실행 중 오류 발생", e);
+                ctx.say("오류가 발생했습니다: " + e.getMessage());
             }
 
             return ackResponse;
