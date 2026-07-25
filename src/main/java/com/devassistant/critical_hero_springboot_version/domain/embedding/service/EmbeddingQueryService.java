@@ -24,4 +24,12 @@ public class EmbeddingQueryService {
         String queryVector = openAiClient.toVectorString(questionEmbedding);
         return commitEmbeddingRepository.findSimilarCommits(queryVector);
     }
+
+    // CRITICAL/WARNING 커밋만 검색
+    @Transactional(readOnly = true)
+    public List<Commit> findRiskyCommits(String question) {
+        float[] questionEmbedding = openAiClient.createEmbedding(question);
+        String queryVector = openAiClient.toVectorString(questionEmbedding);
+        return commitEmbeddingRepository.findRiskyCommits(queryVector);
+    }
 }

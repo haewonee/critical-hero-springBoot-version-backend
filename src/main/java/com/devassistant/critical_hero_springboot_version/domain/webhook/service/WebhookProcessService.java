@@ -61,14 +61,14 @@ public class WebhookProcessService {
                 String diff = fetchDiff(repo, commit.id);
                 String author = commit.author != null ? commit.author.name : "unknown";
 
-                // 1. DB에 커밋 저장 (RAG 검색에 사용)
-                saveCommitIfAbsent(repo, commit.id, author, commit.message, diff);
-
-                // 2. 위험도 분석
+                // 1. 위험도 분석
                 WebhookAnalysisService.AnalysisResult result =
                         analysisService.analyze(commit.message, diff);
 
                 log.info("커밋 {} 분석 결과: {}", commit.id.substring(0, 7), result.level());
+
+                // 2. DB에 커밋 저장 (분석 결과 포함)
+                saveCommitIfAbsent(repo, commit.id, author, commit.message, diff, result.level().name());
 
                 // 3. SAFE는 알림 없이 통과
                 if (result.level() == WebhookAnalysisService.RiskLevel.SAFE) continue;
@@ -83,9 +83,14 @@ public class WebhookProcessService {
     }
 
     // 새 커밋을 DB에 저장하고 임베딩 생성
-    private void saveCommitIfAbsent(String repoFullName, String sha, String author, String message, String diff) {
+    private void saveCommitIfAbsent(String repoFullName, String sha, String author,
+                                     String message, String diff, String riskLevel) {
         if (commitRepository.existsBySha(sha)) {
-            log.info("커밋 이미 존재, 스킵: {}", sha);
+            // 이미 있으면 riskLevel만 업데이트
+            commitRepository.findBySha(sha).ifPresent(c -> {
+                c.updateRiskLevel(riskLevel);
+                commitRepository.save(c);
+            });
             return;
         }
 
@@ -103,8 +108,10 @@ public class WebhookProcessService {
                 .diff(diff)
                 .committedAt(LocalDateTime.now())
                 .build());
+        commit.updateRiskLevel(riskLevel);
+        commitRepository.save(commit);
 
-        log.info("새 커밋 저장: {}", sha);
+        log.info("새 커밋 저장: {} ({})", sha, riskLevel);
 
         // 임베딩 생성 (RAG 검색용)
         embeddingCommandService.embedSingleCommit(commit);

@@ -135,7 +135,10 @@ public class AgentService {
             return switch (toolName) {
                 case "search_commits" -> {
                     String query = (String) args.get("query");
-                    List<Commit> commits = embeddingQueryService.findSimilarCommits(query);
+                    boolean isRiskyQuery = query.matches("(?i).*(위험|문제|critical|warning|취약|보안|버그|결함|오류|장애).*");
+                    List<Commit> commits = isRiskyQuery
+                            ? embeddingQueryService.findRiskyCommits(query)
+                            : embeddingQueryService.findSimilarCommits(query);
                     StringBuilder sb = new StringBuilder("관련 커밋 검색 결과:\n");
                     commits.forEach(c -> sb
                             .append("- ").append(c.getSha(), 0, 7)

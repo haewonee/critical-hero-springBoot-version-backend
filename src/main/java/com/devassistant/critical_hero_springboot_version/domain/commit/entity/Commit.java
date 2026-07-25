@@ -38,6 +38,10 @@ public class Commit extends BaseEntity {
     @Column(name = "committed_at")
     private LocalDateTime committedAt;
 
+    // Webhook 분석 결과 저장 (CRITICAL/WARNING/SAFE/UNKNOWN)
+    @Column(name = "risk_level", length = 10)
+    private String riskLevel;
+
     @Builder
     public Commit(GithubRepo repo, String sha, String author, String message, String diff, LocalDateTime committedAt) {
         this.repo = repo;
@@ -46,5 +50,10 @@ public class Commit extends BaseEntity {
         this.message = message;
         this.diff = diff;
         this.committedAt = committedAt;
+        this.riskLevel = "UNKNOWN";
+    }
+
+    public void updateRiskLevel(String riskLevel) {
+        this.riskLevel = riskLevel;
     }
 }
