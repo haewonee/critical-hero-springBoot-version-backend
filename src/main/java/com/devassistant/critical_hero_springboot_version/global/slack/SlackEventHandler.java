@@ -36,12 +36,12 @@ public class SlackEventHandler {
     private SocketModeApp socketModeApp;
 
     private final Set<String> processedEventIds = Collections.synchronizedSet(
-            new LinkedHashMap<>() {
+            Collections.newSetFromMap(new LinkedHashMap<>() {
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
                     return size() > 200;
                 }
-            }
+            })
     );
 
     @PostConstruct
