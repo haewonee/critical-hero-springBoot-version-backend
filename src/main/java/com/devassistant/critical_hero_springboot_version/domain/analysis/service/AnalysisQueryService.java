@@ -28,7 +28,9 @@ public class AnalysisQueryService {
         // 2. 커밋 내용을 컨텍스트로 조합
         StringBuilder context = new StringBuilder();
         for (Commit commit : similarCommits) {
-            context.append("커밋: ").append(commit.getSha(), 0, 7).append("\n");
+            String sha = commit.getSha() != null ? commit.getSha() : "";
+            String shortSha = sha.length() >= 7 ? sha.substring(0, 7) : sha;
+            context.append("커밋: ").append(shortSha).append("\n");
             context.append("메시지: ").append(commit.getMessage()).append("\n");
             context.append("변경 내용:\n").append(commit.getDiff() != null ? commit.getDiff() : "(diff 없음)").append("\n\n");
         }

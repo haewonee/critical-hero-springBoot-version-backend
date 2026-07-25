@@ -85,7 +85,8 @@ public class WebhookNotificationService {
                                     .build()
                     ))
             );
-            log.info("Slack 알림 전송 완료: {} - {}", sha.substring(0, 7), result.level());
+            String shortSha = sha != null && sha.length() >= 7 ? sha.substring(0, 7) : sha;
+            log.info("Slack 알림 전송 완료: {} - {}", shortSha, result.level());
         } catch (IOException | SlackApiException e) {
             log.error("Slack 알림 전송 실패", e);
         }
