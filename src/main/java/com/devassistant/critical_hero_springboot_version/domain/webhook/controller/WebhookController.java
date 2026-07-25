@@ -26,6 +26,12 @@ public class WebhookController {
             return ResponseEntity.ok().build();
         }
 
+        // Agent가 생성한 fix/ 브랜치 push는 무시 (무한루프 방지)
+        if (payload.ref != null && payload.ref.contains("/fix/")) {
+            log.info("Agent 생성 브랜치 push 무시: {}", payload.ref);
+            return ResponseEntity.ok().build();
+        }
+
         log.info("GitHub push 이벤트 수신 - ref: {}, 커밋 수: {}",
                 payload.ref, payload.commits == null ? 0 : payload.commits.size());
 

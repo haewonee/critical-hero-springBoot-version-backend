@@ -2,6 +2,11 @@ package com.devassistant.critical_hero_springboot_version.global.slack;
 
 import com.slack.api.bolt.App;
 import com.slack.api.bolt.socket_mode.SocketModeApp;
+import com.slack.api.model.block.ActionsBlock;
+import com.slack.api.model.block.SectionBlock;
+import com.slack.api.model.block.composition.MarkdownTextObject;
+import com.slack.api.model.block.composition.PlainTextObject;
+import com.slack.api.model.block.element.ButtonElement;
 import com.devassistant.critical_hero_springboot_version.global.agent.AgentService;
 import com.devassistant.critical_hero_springboot_version.global.agent.GithubAgentTools;
 import jakarta.annotation.PostConstruct;
@@ -13,6 +18,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -30,7 +36,6 @@ public class SlackEventHandler {
 
     private SocketModeApp socketModeApp;
 
-    // 중복 이벤트 필터링용 (최근 200개 event_id 캐시)
     private final Set<String> processedEventIds = Collections.newSetFromMap(
             new LinkedHashMap<>() {
                 @Override
@@ -42,18 +47,16 @@ public class SlackEventHandler {
 
     @PostConstruct
     public void start() throws Exception {
-        // @Critical-hero 멘션 이벤트 처리
+        // @Critical-hero 멘션 처리
         slackApp.event(com.slack.api.model.event.AppMentionEvent.class, (payload, ctx) -> {
             String text = payload.getEvent().getText();
 
-            // 중복 이벤트 무시
             String eventId = payload.getEvent().getEventTs();
             if (eventId != null && !processedEventIds.add(eventId)) {
                 log.info("중복 이벤트 무시: {}", eventId);
                 return ctx.ack();
             }
 
-            // 멘션 제거 후 질문 추출
             String question = text.replaceAll("<@[A-Z0-9]+>", "").trim();
             log.info("Slack 멘션 수신 - 질문: {}", question);
 
@@ -79,44 +82,74 @@ public class SlackEventHandler {
 
         // "🔧 PR 자동 생성" 버튼 클릭 처리
         slackApp.blockAction("create_pr", (req, ctx) -> {
+            ctx.ack();
+
             String value = req.getPayload().getActions().get(0).getValue();
-            // value 형식: "sha|filePath"
             String[] parts = value.split("\\|", 2);
             String sha = parts[0];
             String filePath = parts.length > 1 ? parts[1] : "unknown";
 
             log.info("PR 생성 버튼 클릭 - sha: {}, 파일: {}", sha.substring(0, 7), filePath);
 
-            // 즉시 ack 후 비동기로 PR 생성
-            ctx.ack();
-
             new Thread(() -> {
                 try {
                     // 파일 현재 내용 읽기
                     String currentContent = githubAgentTools.getFileContent(filePath);
                     if (currentContent.startsWith("파일을 찾을 수 없습니다")) {
-                        ctx.respond("파일을 찾을 수 없어서 PR을 생성할 수 없습니다: " + filePath);
+                        ctx.respond("❌ 파일을 찾을 수 없습니다: " + filePath);
                         return;
                     }
 
-                    // Agent로 코드 수정 + PR 생성 요청
-                    String question = String.format(
-                            "%s 파일의 보안/품질 문제를 수정하고 PR을 생성해줘. 현재 코드:\n%s",
+                    // Agent로 수정 코드 생성
+                    String agentQuestion = String.format(
+                            "%s 파일의 보안 및 품질 문제를 수정한 코드를 작성해줘. PR은 직접 생성하지 말고 수정된 코드만 알려줘. 현재 코드:\n%s",
                             filePath, currentContent
                     );
-                    String result = agentService.run(question);
+                    String fixedCode = agentService.run(agentQuestion);
 
-                    ctx.respond("✅ " + result);
+                    // PR 생성 후 URL 받기
+                    String prUrl = githubAgentTools.createPullRequestAndGetUrl(
+                            filePath,
+                            fixedCode,
+                            filePath + " 보안 및 품질 문제 수정",
+                            "Critical Hero AI Agent가 감지한 보안 취약점 및 코드 품질 문제를 수정했습니다."
+                    );
+
+                    // PR 링크 버튼으로 응답
+                    ctx.respond(r -> r
+                            .blocks(List.of(
+                                    SectionBlock.builder()
+                                            .text(MarkdownTextObject.builder()
+                                                    .text("✅ PR이 생성되었습니다! 아래 버튼을 눌러 확인하세요.")
+                                                    .build())
+                                            .build(),
+                                    ActionsBlock.builder()
+                                            .elements(List.of(
+                                                    ButtonElement.builder()
+                                                            .text(PlainTextObject.builder()
+                                                                    .text("🔗 PR 바로 열기").build())
+                                                            .url(prUrl)
+                                                            .actionId("open_pr_link")
+                                                            .style("primary")
+                                                            .build()
+                                            ))
+                                            .build()
+                            ))
+                    );
+
                 } catch (Exception e) {
                     log.error("PR 생성 실패", e);
                     try {
-                        ctx.respond("PR 생성 중 오류가 발생했습니다: " + e.getMessage());
+                        ctx.respond("❌ PR 생성 중 오류가 발생했습니다: " + e.getMessage());
                     } catch (Exception ignored) {}
                 }
             }).start();
 
             return ctx.ack();
         });
+
+        // PR 링크 버튼은 URL 클릭이라 별도 처리 불필요 (Slack이 자동으로 열어줌)
+        slackApp.blockAction("open_pr_link", (req, ctx) -> ctx.ack());
 
         socketModeApp = new SocketModeApp(appToken, slackApp);
         socketModeApp.startAsync();

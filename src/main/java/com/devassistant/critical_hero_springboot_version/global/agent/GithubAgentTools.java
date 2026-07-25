@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -39,7 +40,6 @@ public class GithubAgentTools {
                     .block();
 
             String encoded = (String) response.get("content");
-            // GitHub API는 Base64로 인코딩해서 줌 (줄바꿈 제거 필요)
             String decoded = new String(Base64.getDecoder().decode(encoded.replaceAll("\\s", "")));
             log.info("파일 조회 성공: {}", filePath);
             return decoded;
@@ -49,82 +49,107 @@ public class GithubAgentTools {
         }
     }
 
-    // 새 브랜치 생성 + 파일 수정 + PR 생성
+    // Agent용 - 문자열 반환 (Function Calling 결과)
     public String createPullRequest(String filePath, String newContent, String prTitle, String prBody) {
         try {
-            String[] parts = repo.split("/");
-            String owner = parts[0];
-            String name = parts[1];
-            String branchName = "fix/" + UUID.randomUUID().toString().substring(0, 8);
-
-            // 1. main 브랜치의 최신 SHA 조회
-            Map refResponse = githubClient.get()
-                    .uri("/repos/{owner}/{repo}/git/ref/heads/main", owner, name)
-                    .retrieve()
-                    .bodyToMono(Map.class)
-                    .block();
-            Map refObject = (Map) refResponse.get("object");
-            String mainSha = (String) refObject.get("sha");
-
-            // 2. 새 브랜치 생성
-            githubClient.post()
-                    .uri("/repos/{owner}/{repo}/git/refs", owner, name)
-                    .bodyValue(Map.of(
-                            "ref", "refs/heads/" + branchName,
-                            "sha", mainSha
-                    ))
-                    .retrieve()
-                    .bodyToMono(Map.class)
-                    .block();
-
-            // 3. 기존 파일 SHA 조회 (파일 수정 시 필요)
-            String fileSha = null;
-            try {
-                Map fileResponse = githubClient.get()
-                        .uri("/repos/{owner}/{repo}/contents/{path}?ref=main", owner, name, filePath)
-                        .retrieve()
-                        .bodyToMono(Map.class)
-                        .block();
-                fileSha = (String) fileResponse.get("sha");
-            } catch (Exception ignored) {
-                // 파일이 없으면 새로 생성
-            }
-
-            // 4. 파일 수정 (Base64 인코딩)
-            String encodedContent = Base64.getEncoder().encodeToString(newContent.getBytes());
-            var updateRequest = new java.util.HashMap<String, Object>();
-            updateRequest.put("message", prTitle);
-            updateRequest.put("content", encodedContent);
-            updateRequest.put("branch", branchName);
-            if (fileSha != null) updateRequest.put("sha", fileSha);
-
-            githubClient.put()
-                    .uri("/repos/{owner}/{repo}/contents/{path}", owner, name, filePath)
-                    .bodyValue(updateRequest)
-                    .retrieve()
-                    .bodyToMono(Map.class)
-                    .block();
-
-            // 5. PR 생성
-            Map prResponse = githubClient.post()
-                    .uri("/repos/{owner}/{repo}/pulls", owner, name)
-                    .bodyValue(Map.of(
-                            "title", prTitle,
-                            "body", prBody,
-                            "head", branchName,
-                            "base", "main"
-                    ))
-                    .retrieve()
-                    .bodyToMono(Map.class)
-                    .block();
-
-            String prUrl = (String) prResponse.get("html_url");
-            log.info("PR 생성 완료: {}", prUrl);
+            String prUrl = createPr(filePath, newContent, prTitle, prBody);
             return "PR 생성 완료: " + prUrl;
-
         } catch (Exception e) {
             log.error("PR 생성 실패", e);
             return "PR 생성 중 오류가 발생했습니다: " + e.getMessage();
         }
+    }
+
+    // 버튼 클릭용 - PR URL 직접 반환
+    public String createPullRequestAndGetUrl(String filePath, String newContent, String prTitle, String prBody) {
+        return createPr(filePath, newContent, prTitle, prBody);
+    }
+
+    private String createPr(String filePath, String newContent, String prTitle, String prBody) {
+        String[] parts = repo.split("/");
+        String owner = parts[0];
+        String name = parts[1];
+        String branchName = "fix/" + UUID.randomUUID().toString().substring(0, 8);
+
+        // 1. main 브랜치 최신 SHA 조회
+        Map refResponse = githubClient.get()
+                .uri("/repos/{owner}/{repo}/git/ref/heads/main", owner, name)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .block();
+        String mainSha = (String) ((Map) refResponse.get("object")).get("sha");
+
+        // 2. 새 브랜치 생성
+        githubClient.post()
+                .uri("/repos/{owner}/{repo}/git/refs", owner, name)
+                .bodyValue(Map.of("ref", "refs/heads/" + branchName, "sha", mainSha))
+                .retrieve()
+                .bodyToMono(Map.class)
+                .block();
+
+        // 3. 기존 파일 SHA 조회 (수정 시 필요)
+        String fileSha = null;
+        try {
+            Map fileResponse = githubClient.get()
+                    .uri("/repos/{owner}/{repo}/contents/{path}?ref=main", owner, name, filePath)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+            fileSha = (String) fileResponse.get("sha");
+        } catch (Exception ignored) {}
+
+        // 4. 파일 수정 커밋 (커밋 메시지에 fix: prefix)
+        String commitMessage = prTitle.startsWith("fix:") ? prTitle : "fix: " + prTitle;
+        String encodedContent = Base64.getEncoder().encodeToString(newContent.getBytes());
+        HashMap<String, Object> updateRequest = new HashMap<>();
+        updateRequest.put("message", commitMessage);
+        updateRequest.put("content", encodedContent);
+        updateRequest.put("branch", branchName);
+        if (fileSha != null) updateRequest.put("sha", fileSha);
+
+        githubClient.put()
+                .uri("/repos/{owner}/{repo}/contents/{path}", owner, name, filePath)
+                .bodyValue(updateRequest)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .block();
+
+        // 5. PR 생성 (title에 fix: prefix, 설명 풍부하게)
+        String finalTitle = prTitle.startsWith("fix:") ? prTitle : "fix: " + prTitle;
+        String fullBody = String.format("""
+                ## 🤖 Critical Hero AI Agent가 자동 생성한 PR
+
+                ## 📋 변경 사항
+                %s
+
+                ## 🔍 발견된 문제
+                - 보안 취약점 또는 코드 품질 문제가 감지되어 자동 수정되었습니다.
+
+                ## ✅ 수정 내용
+                - `%s` 파일의 문제 코드를 안전한 방식으로 수정했습니다.
+
+                ## ⚠️ 주의사항
+                - 머지 전 반드시 코드 리뷰를 진행해 주세요.
+                - 환경변수 설정이 필요한 경우 서버 설정을 업데이트해 주세요.
+
+                ---
+                *이 PR은 Critical Hero AI Agent에 의해 자동 생성되었습니다.*
+                """, prBody, filePath);
+
+        Map prResponse = githubClient.post()
+                .uri("/repos/{owner}/{repo}/pulls", owner, name)
+                .bodyValue(Map.of(
+                        "title", finalTitle,
+                        "body", fullBody,
+                        "head", branchName,
+                        "base", "main"
+                ))
+                .retrieve()
+                .bodyToMono(Map.class)
+                .block();
+
+        String prUrl = (String) prResponse.get("html_url");
+        log.info("PR 생성 완료: {}", prUrl);
+        return prUrl;
     }
 }
