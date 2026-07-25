@@ -101,8 +101,8 @@ public class GithubAgentTools {
             fileSha = (String) fileResponse.get("sha");
         } catch (Exception ignored) {}
 
-        // 4. 파일 수정 커밋 (커밋 메시지에 fix: prefix)
-        String commitMessage = prTitle.startsWith("fix:") ? prTitle : "fix: " + prTitle;
+        // 4. 파일 수정 커밋 ([auto] 태그로 Webhook 재처리 방지)
+        String commitMessage = (prTitle.startsWith("fix:") ? prTitle : "fix: " + prTitle) + " [auto]";
         String encodedContent = Base64.getEncoder().encodeToString(newContent.getBytes());
         HashMap<String, Object> updateRequest = new HashMap<>();
         updateRequest.put("message", commitMessage);

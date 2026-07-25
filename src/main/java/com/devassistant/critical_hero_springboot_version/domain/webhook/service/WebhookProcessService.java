@@ -59,11 +59,9 @@ public class WebhookProcessService {
 
         for (GithubWebhookPayload.CommitPayload commit : payload.commits) {
             try {
-                // Merge 커밋 스킵 (PR 머지, 브랜치 머지 등 중복 알림 방지)
-                if (commit.message != null && (
-                        commit.message.startsWith("Merge pull request") ||
-                        commit.message.startsWith("Merge branch"))) {
-                    log.info("Merge 커밋 스킵: {}", commit.id);
+                // Agent가 생성한 커밋은 스킵 (무한루프 방지)
+                if (commit.message != null && commit.message.contains("[auto]")) {
+                    log.info("Agent 자동 생성 커밋 스킵: {}", commit.id);
                     continue;
                 }
 
