@@ -2,12 +2,17 @@ package com.devassistant.critical_hero_springboot_version.domain.webhook.service
 
 import com.slack.api.bolt.App;
 import com.slack.api.methods.SlackApiException;
+import com.slack.api.model.block.ActionsBlock;
+import com.slack.api.model.block.SectionBlock;
+import com.slack.api.model.block.composition.MarkdownTextObject;
+import com.slack.api.model.block.element.ButtonElement;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -40,7 +45,7 @@ public class WebhookNotificationService {
             codeSnippet = "\n*문제 코드:*\n```" + trimmed + "```";
         }
 
-        String message = String.format("""
+        String messageText = String.format("""
                 %s *[%s]*
                 *커밋:* <%s|%s>
                 *작성자:* %s
@@ -55,14 +60,45 @@ public class WebhookNotificationService {
                 codeSnippet
         );
 
+        // Block Kit - 메시지 + PR 생성 버튼
+        // value에 sha와 파일 경로 정보를 넣어 버튼 클릭 시 사용
+        String buttonValue = sha + "|" + extractFilePath(diff);
+
         try {
             slackApp.client().chatPostMessage(req -> req
                     .channel(alertChannel)
-                    .text(message)
+                    .text(messageText)
+                    .blocks(List.of(
+                            SectionBlock.builder()
+                                    .text(MarkdownTextObject.builder().text(messageText).build())
+                                    .build(),
+                            ActionsBlock.builder()
+                                    .elements(List.of(
+                                            ButtonElement.builder()
+                                                    .text(com.slack.api.model.block.composition.PlainTextObject.builder()
+                                                            .text("🔧 PR 자동 생성").build())
+                                                    .actionId("create_pr")
+                                                    .value(buttonValue)
+                                                    .style("danger")
+                                                    .build()
+                                    ))
+                                    .build()
+                    ))
             );
             log.info("Slack 알림 전송 완료: {} - {}", sha.substring(0, 7), result.level());
         } catch (IOException | SlackApiException e) {
             log.error("Slack 알림 전송 실패", e);
         }
+    }
+
+    // diff에서 첫 번째 파일 경로 추출
+    private String extractFilePath(String diff) {
+        if (diff == null || diff.isBlank()) return "unknown";
+        for (String line : diff.split("\n")) {
+            if (line.startsWith("파일: ")) {
+                return line.replace("파일: ", "").trim();
+            }
+        }
+        return "unknown";
     }
 }

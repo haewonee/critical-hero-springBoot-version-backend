@@ -3,6 +3,7 @@ package com.devassistant.critical_hero_springboot_version.global.slack;
 import com.slack.api.bolt.App;
 import com.slack.api.bolt.socket_mode.SocketModeApp;
 import com.devassistant.critical_hero_springboot_version.global.agent.AgentService;
+import com.devassistant.critical_hero_springboot_version.global.agent.GithubAgentTools;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class SlackEventHandler {
 
     private final App slackApp;
     private final AgentService agentService;
+    private final GithubAgentTools githubAgentTools;
 
     @Value("${slack.app-token}")
     private String appToken;
@@ -40,6 +42,7 @@ public class SlackEventHandler {
 
     @PostConstruct
     public void start() throws Exception {
+        // @Critical-hero 멘션 이벤트 처리
         slackApp.event(com.slack.api.model.event.AppMentionEvent.class, (payload, ctx) -> {
             String text = payload.getEvent().getText();
 
@@ -72,6 +75,47 @@ public class SlackEventHandler {
             }
 
             return ackResponse;
+        });
+
+        // "🔧 PR 자동 생성" 버튼 클릭 처리
+        slackApp.blockAction("create_pr", (req, ctx) -> {
+            String value = req.getPayload().getActions().get(0).getValue();
+            // value 형식: "sha|filePath"
+            String[] parts = value.split("\\|", 2);
+            String sha = parts[0];
+            String filePath = parts.length > 1 ? parts[1] : "unknown";
+
+            log.info("PR 생성 버튼 클릭 - sha: {}, 파일: {}", sha.substring(0, 7), filePath);
+
+            // 즉시 ack 후 비동기로 PR 생성
+            ctx.ack();
+
+            new Thread(() -> {
+                try {
+                    // 파일 현재 내용 읽기
+                    String currentContent = githubAgentTools.getFileContent(filePath);
+                    if (currentContent.startsWith("파일을 찾을 수 없습니다")) {
+                        ctx.respond("파일을 찾을 수 없어서 PR을 생성할 수 없습니다: " + filePath);
+                        return;
+                    }
+
+                    // Agent로 코드 수정 + PR 생성 요청
+                    String question = String.format(
+                            "%s 파일의 보안/품질 문제를 수정하고 PR을 생성해줘. 현재 코드:\n%s",
+                            filePath, currentContent
+                    );
+                    String result = agentService.run(question);
+
+                    ctx.respond("✅ " + result);
+                } catch (Exception e) {
+                    log.error("PR 생성 실패", e);
+                    try {
+                        ctx.respond("PR 생성 중 오류가 발생했습니다: " + e.getMessage());
+                    } catch (Exception ignored) {}
+                }
+            }).start();
+
+            return ctx.ack();
         });
 
         socketModeApp = new SocketModeApp(appToken, slackApp);
