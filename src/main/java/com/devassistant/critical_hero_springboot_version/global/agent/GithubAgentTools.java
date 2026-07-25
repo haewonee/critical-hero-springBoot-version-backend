@@ -125,12 +125,8 @@ public class GithubAgentTools {
 
                 %s
 
-                ## 주의사항
-                - 머지 전 반드시 코드 리뷰를 진행해 주세요.
-                - 이 PR은 AI Agent가 자동 생성한 코드입니다. 실제 운영 환경 적용 전 반드시 사람이 직접 검토하고 테스트를 수행해 주세요.
-
                 ---
-                *이 PR은 Critical Hero AI Agent에 의해 자동 생성되었습니다.*
+                > 머지 전 반드시 코드 리뷰를 진행해 주세요. 이 PR은 Critical Hero AI Agent가 자동 생성한 코드입니다.
                 """, filePath, prBody);
 
         Map prResponse = githubClient.post()

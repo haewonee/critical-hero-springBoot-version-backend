@@ -59,8 +59,10 @@ public class WebhookProcessService {
 
         for (GithubWebhookPayload.CommitPayload commit : payload.commits) {
             try {
-                // Merge 커밋 스킵 (중복 알림 방지)
-                if (commit.message != null && commit.message.startsWith("Merge")) {
+                // Merge 커밋 스킵 (PR 머지, 브랜치 머지 등 중복 알림 방지)
+                if (commit.message != null && (
+                        commit.message.startsWith("Merge pull request") ||
+                        commit.message.startsWith("Merge branch"))) {
                     log.info("Merge 커밋 스킵: {}", commit.id);
                     continue;
                 }

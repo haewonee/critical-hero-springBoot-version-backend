@@ -55,7 +55,7 @@ public class SlackPrService {
             String foundIssues = extractSection(agentResponse, "ISSUES:", "FIXED_DESCRIPTION:");
             String fixDescription = extractSection(agentResponse, "FIXED_DESCRIPTION:", "FIXED_CODE:");
             String fixedCode = extractSection(agentResponse, "FIXED_CODE:", null);
-            String prBody = foundIssues + "\n\n" + fixDescription;
+            String prBody = "## 발견된 문제\n" + foundIssues + "\n\n## 수정 사항\n" + fixDescription;
 
             if (fixedCode.isBlank()) {
                 onError.accept("코드 수정에 실패했습니다. 다시 시도해 주세요.");
