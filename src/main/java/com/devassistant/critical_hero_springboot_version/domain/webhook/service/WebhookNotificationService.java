@@ -20,7 +20,7 @@ public class WebhookNotificationService {
     private String alertChannel;
 
     public void sendAlert(String sha, String author, String commitMessage,
-                          String commitUrl, WebhookAnalysisService.AnalysisResult result) {
+                          String commitUrl, String diff, WebhookAnalysisService.AnalysisResult result) {
         String emoji = switch (result.level()) {
             case CRITICAL -> "🔴";
             case WARNING -> "🟡";
@@ -33,18 +33,26 @@ public class WebhookNotificationService {
             case SAFE -> "SAFE";
         };
 
+        // diff에서 앞 300자만 잘라서 문제 코드 스니펫으로 표시
+        String codeSnippet = "";
+        if (diff != null && !diff.isBlank()) {
+            String trimmed = diff.length() > 300 ? diff.substring(0, 300) + "\n..." : diff;
+            codeSnippet = "\n*문제 코드:*\n```" + trimmed + "```";
+        }
+
         String message = String.format("""
                 %s *[%s]*
                 *커밋:* <%s|%s>
                 *작성자:* %s
                 *메시지:* %s
-                *분석:* %s
+                *분석:* %s%s
                 """,
                 emoji, levelText,
                 commitUrl, sha.substring(0, 7),
                 author,
                 commitMessage,
-                result.reason()
+                result.reason(),
+                codeSnippet
         );
 
         try {

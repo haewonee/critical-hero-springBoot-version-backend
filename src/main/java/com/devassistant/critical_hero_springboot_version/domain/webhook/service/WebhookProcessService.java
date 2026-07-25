@@ -55,7 +55,7 @@ public class WebhookProcessService {
                 if (result.level() == WebhookAnalysisService.RiskLevel.SAFE) continue;
 
                 notificationService.sendAlert(
-                        commit.id, author, commit.message, commit.url, result
+                        commit.id, author, commit.message, commit.url, diff, result
                 );
             } catch (Exception e) {
                 log.error("커밋 {} 처리 실패", commit.id, e);

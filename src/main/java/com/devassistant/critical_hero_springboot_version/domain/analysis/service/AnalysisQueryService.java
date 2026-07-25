@@ -30,7 +30,7 @@ public class AnalysisQueryService {
         for (Commit commit : similarCommits) {
             context.append("커밋: ").append(commit.getSha(), 0, 7).append("\n");
             context.append("메시지: ").append(commit.getMessage()).append("\n");
-            context.append("변경 내용:\n").append(commit.getDiff()).append("\n\n");
+            context.append("변경 내용:\n").append(commit.getDiff() != null ? commit.getDiff() : "(diff 없음)").append("\n\n");
         }
 
         // 3. Claude에게 분석 요청
