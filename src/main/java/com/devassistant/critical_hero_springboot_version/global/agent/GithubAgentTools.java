@@ -117,14 +117,10 @@ public class GithubAgentTools {
         // 5. PR 생성 (title에 fix: prefix, 설명 풍부하게)
         String finalTitle = prTitle.startsWith("fix:") ? prTitle : "fix: " + prTitle;
         String fullBody = String.format("""
-                ## 변경 사항
-                %s
-
-                ## 발견된 문제
-                - 보안 취약점 또는 코드 품질 문제가 감지되어 자동 수정되었습니다.
-
                 ## 수정 대상 파일
                 `%s`
+
+                %s
 
                 ## 주의사항
                 - 머지 전 반드시 코드 리뷰를 진행해 주세요.
@@ -132,7 +128,7 @@ public class GithubAgentTools {
 
                 ---
                 *이 PR은 Critical Hero AI Agent에 의해 자동 생성되었습니다.*
-                """, prBody, filePath);
+                """, filePath, prBody);
 
         Map prResponse = githubClient.post()
                 .uri("/repos/{owner}/{repo}/pulls", owner, name)
