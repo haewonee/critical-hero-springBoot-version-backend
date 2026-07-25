@@ -43,14 +43,15 @@ public class Commit extends BaseEntity {
     private String riskLevel;
 
     @Builder
-    public Commit(GithubRepo repo, String sha, String author, String message, String diff, LocalDateTime committedAt) {
+    public Commit(GithubRepo repo, String sha, String author, String message, String diff,
+                  LocalDateTime committedAt, String riskLevel) {
         this.repo = repo;
         this.sha = sha;
         this.author = author;
         this.message = message;
         this.diff = diff;
         this.committedAt = committedAt;
-        this.riskLevel = "UNKNOWN";
+        this.riskLevel = riskLevel != null ? riskLevel : "UNKNOWN";
     }
 
     public void updateRiskLevel(String riskLevel) {

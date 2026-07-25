@@ -4,6 +4,7 @@ import com.devassistant.critical_hero_springboot_version.global.apiPayload.ApiRe
 import com.devassistant.critical_hero_springboot_version.global.apiPayload.code.BaseErrorCode;
 import com.devassistant.critical_hero_springboot_version.global.apiPayload.code.GeneralErrorCode;
 import com.devassistant.critical_hero_springboot_version.global.apiPayload.exception.GeneralException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @RestControllerAdvice
 public class GeneralExceptionAdvice {
 
@@ -31,17 +33,13 @@ public class GeneralExceptionAdvice {
 
     // 그 외의 정의되지 않은 모든 예외 처리
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<String>> handleException(
+    public ResponseEntity<ApiResponse<Void>> handleException(
             Exception ex
     ) {
-
+        log.error("처리되지 않은 예외 발생", ex);
         BaseErrorCode code = GeneralErrorCode.INTERNAL_SERVER_ERROR;
         return ResponseEntity.status(code.getStatus())
-                .body(ApiResponse.onFailure(
-                                code,
-                                ex.getMessage()
-                        )
-                );
+                .body(ApiResponse.onFailure(code, null));
     }
 
     // 컨트롤러 메서드에서 @Valid 어노테이션을 사용하여 DTO의 유효성 검사를 수행

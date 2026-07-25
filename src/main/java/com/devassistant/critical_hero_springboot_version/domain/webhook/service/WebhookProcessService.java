@@ -54,7 +54,8 @@ public class WebhookProcessService {
     public void process(GithubWebhookPayload payload) {
         if (payload.commits == null || payload.commits.isEmpty()) return;
 
-        String repo = payload.repository != null ? payload.repository.fullName : repoFullName;
+        String repo = (payload.repository != null && payload.repository.fullName != null)
+                ? payload.repository.fullName : repoFullName;
 
         for (GithubWebhookPayload.CommitPayload commit : payload.commits) {
             try {
@@ -107,9 +108,8 @@ public class WebhookProcessService {
                 .message(message)
                 .diff(diff)
                 .committedAt(LocalDateTime.now())
+                .riskLevel(riskLevel)
                 .build());
-        commit.updateRiskLevel(riskLevel);
-        commitRepository.save(commit);
 
         log.info("새 커밋 저장: {} ({})", sha, riskLevel);
 

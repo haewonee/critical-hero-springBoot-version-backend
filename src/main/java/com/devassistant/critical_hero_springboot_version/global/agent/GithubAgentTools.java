@@ -77,6 +77,9 @@ public class GithubAgentTools {
                 .retrieve()
                 .bodyToMono(Map.class)
                 .block();
+        if (refResponse == null || refResponse.get("object") == null) {
+            throw new IllegalStateException("main 브랜치 SHA 조회 실패");
+        }
         String mainSha = (String) ((Map) refResponse.get("object")).get("sha");
 
         // 2. 새 브랜치 생성

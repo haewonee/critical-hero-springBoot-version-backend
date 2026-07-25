@@ -18,8 +18,7 @@ public class AgentService {
 
     private final EmbeddingQueryService embeddingQueryService;
     private final GithubAgentTools githubAgentTools;
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     @Value("${openai.chat-url}")
     private String chatUrl;
@@ -140,13 +139,17 @@ public class AgentService {
                             ? embeddingQueryService.findRiskyCommits(query)
                             : embeddingQueryService.findSimilarCommits(query);
                     StringBuilder sb = new StringBuilder("관련 커밋 검색 결과:\n");
-                    commits.forEach(c -> sb
-                            .append("- ").append(c.getSha(), 0, 7)
-                            .append(" | ").append(c.getMessage()).append("\n")
-                            .append("  변경내용: ").append(c.getDiff() != null
-                                    ? c.getDiff().substring(0, Math.min(300, c.getDiff().length()))
-                                    : "(없음)").append("\n")
-                    );
+                    commits.forEach(c -> {
+                        String sha = c.getSha() != null ? c.getSha() : "";
+                        String shortSha = sha.length() >= 7 ? sha.substring(0, 7) : sha;
+                        String message = c.getMessage() != null ? c.getMessage() : "(메시지 없음)";
+                        String diff = c.getDiff() != null && !c.getDiff().isEmpty()
+                                ? c.getDiff().substring(0, Math.min(300, c.getDiff().length()))
+                                : "(없음)";
+                        sb.append("- ").append(shortSha)
+                                .append(" | ").append(message).append("\n")
+                                .append("  변경내용: ").append(diff).append("\n");
+                    });
                     yield sb.toString();
                 }
                 case "get_file_content" -> githubAgentTools.getFileContent((String) args.get("file_path"));

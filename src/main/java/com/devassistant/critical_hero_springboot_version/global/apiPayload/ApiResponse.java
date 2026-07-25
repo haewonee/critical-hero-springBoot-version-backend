@@ -25,6 +25,14 @@ public class ApiResponse<T> {
     private T result;
 
     // 성공한 경우 (result 포함)
+    public static <T> ApiResponse<T> onSuccess(T result) {
+        return new ApiResponse<>(true, "SUCCESS", "요청이 성공적으로 처리되었습니다.", result);
+    }
+
+    // 성공한 경우 (result 없음)
+    public static ApiResponse<Void> onSuccess() {
+        return new ApiResponse<>(true, "SUCCESS", "요청이 성공적으로 처리되었습니다.", null);
+    }
 
     // 실패한 경우 (result 포함)
     public static <T> ApiResponse<T> onFailure(BaseErrorCode code, T result) {

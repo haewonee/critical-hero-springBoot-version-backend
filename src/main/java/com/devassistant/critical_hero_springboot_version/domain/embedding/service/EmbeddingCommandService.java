@@ -2,6 +2,8 @@ package com.devassistant.critical_hero_springboot_version.domain.embedding.servi
 
 import com.devassistant.critical_hero_springboot_version.domain.commit.entity.Commit;
 import com.devassistant.critical_hero_springboot_version.domain.commit.repository.CommitRepository;
+import com.devassistant.critical_hero_springboot_version.domain.embedding.exception.EmbeddingException;
+import com.devassistant.critical_hero_springboot_version.domain.embedding.exception.code.EmbeddingErrorCode;
 import com.devassistant.critical_hero_springboot_version.domain.embedding.repository.CommitEmbeddingRepository;
 import com.devassistant.critical_hero_springboot_version.global.client.OpenAiClient;
 import lombok.RequiredArgsConstructor;
@@ -44,7 +46,8 @@ public class EmbeddingCommandService {
             );
             log.info("임베딩 저장 완료: {}", commit.getSha());
         } catch (Exception e) {
-            throw new RuntimeException("임베딩 저장 실패: " + commit.getSha(), e);
+            log.error("임베딩 저장 실패: {}", commit.getSha(), e);
+            throw new EmbeddingException(EmbeddingErrorCode.EMBEDDING_FAILED);
         }
     }
 
