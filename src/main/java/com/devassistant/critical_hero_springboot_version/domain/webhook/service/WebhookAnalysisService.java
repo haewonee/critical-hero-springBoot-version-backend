@@ -25,8 +25,10 @@ public class WebhookAnalysisService {
 
                 🔴 CRITICAL 기준:
                 - 하드코딩된 비밀번호/API키/토큰/시크릿 (password="...", api_key="sk-..." 등)
-                - 인증/권한 정보(토큰, 세션, 자격증명)를 API 응답이나 로그에 노출
-                - SQL Injection 취약점 (사용자 입력을 직접 쿼리에 문자열 연결)
+                - Bearer 토큰, JWT, DB 연결 문자열 등 인증 정보를 응답/로그에 노출
+                - 암호화 없이 민감 데이터(개인정보, 카드번호 등)를 평문 저장 또는 전송
+                - 외부 API로 민감 데이터 무단 전송
+                - SQL Injection (사용자 입력을 직접 쿼리에 문자열 연결)
                 - Command Injection (사용자 입력을 shell=True 명령어에 삽입)
                 - 인증/권한 체크 로직 삭제 또는 우회
                 - 결제/금융 관련 핵심 로직 무단 변경
@@ -37,6 +39,9 @@ public class WebhookAnalysisService {
                 - 예외처리 누락 (빈 catch 블록, Exception 묻어버리기)
                 - 인증 없이 민감한 작업 수행 (삭제, 수정 등)
                 - TODO/FIXME/HACK 주석과 함께 올라온 미완성 코드
+                - 동시성 문제 가능성 (Thread-safe하지 않은 공유 자원 접근)
+                - 리소스 누수 (File, Connection, Stream 미닫음)
+                - 성능 문제 (N+1 쿼리, 루프 내 DB 호출, 무한 루프 가능성)
                 - 핵심 비즈니스 로직 대규모 삭제
 
                 🟢 SAFE 기준:
