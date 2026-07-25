@@ -24,18 +24,20 @@ public class WebhookAnalysisService {
                 커밋 메시지와 diff를 보고 위험도를 3단계로 판단하세요.
 
                 🔴 CRITICAL 기준:
-                - 하드코딩된 비밀번호/API키/토큰 (password="1234", api_key="sk-..." 등)
-                - SQL Injection 취약점 (문자열을 직접 쿼리에 삽입)
+                - 하드코딩된 비밀번호/API키/토큰/시크릿 (password="...", api_key="sk-..." 등)
+                - 인증/권한 정보(토큰, 세션, 자격증명)를 API 응답이나 로그에 노출
+                - SQL Injection 취약점 (사용자 입력을 직접 쿼리에 문자열 연결)
+                - Command Injection (사용자 입력을 shell=True 명령어에 삽입)
                 - 인증/권한 체크 로직 삭제 또는 우회
-                - 결제/금융 관련 핵심 로직 변경
-                - DROP TABLE, rm -rf 등 데이터 삭제 명령
+                - 결제/금융 관련 핵심 로직 무단 변경
+                - DROP TABLE, DELETE FROM (WHERE 없음), rm -rf 등 대량 데이터 삭제
 
                 🟡 WARNING 기준:
-                - NullPointerException 가능성 (null 체크 없는 접근)
-                - 예외처리 누락 (빈 catch 블록, catch(Exception e) 무분별 사용)
-                - 핵심 비즈니스 로직 50줄 이상 대규모 삭제
+                - NullPointerException 가능성 (null 체크 없는 객체 접근)
+                - 예외처리 누락 (빈 catch 블록, Exception 묻어버리기)
+                - 인증 없이 민감한 작업 수행 (삭제, 수정 등)
                 - TODO/FIXME/HACK 주석과 함께 올라온 미완성 코드
-                - 테스트 없이 핵심 로직 변경
+                - 핵심 비즈니스 로직 대규모 삭제
 
                 🟢 SAFE 기준:
                 - README, 문서, 주석 수정
