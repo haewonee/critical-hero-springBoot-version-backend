@@ -61,7 +61,7 @@ public class EmbeddingCommandService {
                 continue;
             }
 
-            String text = commit.getMessage() + "\n" + commit.getDiff();
+            String text = commit.getMessage() + "\n" + (commit.getDiff() != null ? commit.getDiff() : "");
             float[] embedding = openAiClient.createEmbedding(text);
             String vectorString = openAiClient.toVectorString(embedding);
 

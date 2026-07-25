@@ -20,7 +20,8 @@ public class CommitConverter {
                 commit.getSha(),
                 commit.getAuthor(),
                 commit.getMessage(),
-                commit.getCommittedAt()
+                commit.getCommittedAt(),
+                commit.getRiskLevel()
         );
     }
 }

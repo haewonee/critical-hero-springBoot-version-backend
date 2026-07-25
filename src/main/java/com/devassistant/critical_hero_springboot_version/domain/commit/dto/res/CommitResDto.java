@@ -16,6 +16,7 @@ public class CommitResDto {
             String sha,
             String author,
             String message,
-            LocalDateTime committedAt
+            LocalDateTime committedAt,
+            String riskLevel
     ) {}
 }
