@@ -96,7 +96,7 @@ public class SlackEventHandler {
                     // 파일 현재 내용 읽기
                     String currentContent = githubAgentTools.getFileContent(filePath);
                     if (currentContent.startsWith("파일을 찾을 수 없습니다")) {
-                        ctx.respond("❌ 파일을 찾을 수 없습니다: " + filePath);
+                        ctx.respond("파일을 찾을 수 없습니다: " + filePath);
                         return;
                     }
 
@@ -120,14 +120,14 @@ public class SlackEventHandler {
                             .blocks(List.of(
                                     SectionBlock.builder()
                                             .text(MarkdownTextObject.builder()
-                                                    .text("✅ PR이 생성되었습니다! 아래 버튼을 눌러 확인하세요.")
+                                                    .text("PR이 생성되었습니다. 아래 버튼을 눌러 확인하세요.")
                                                     .build())
                                             .build(),
                                     ActionsBlock.builder()
                                             .elements(List.of(
                                                     ButtonElement.builder()
                                                             .text(PlainTextObject.builder()
-                                                                    .text("🔗 PR 바로 열기").build())
+                                                                    .text("PR 바로 열기").build())
                                                             .url(prUrl)
                                                             .actionId("open_pr_link")
                                                             .style("primary")
@@ -140,7 +140,7 @@ public class SlackEventHandler {
                 } catch (Exception e) {
                     log.error("PR 생성 실패", e);
                     try {
-                        ctx.respond("❌ PR 생성 중 오류가 발생했습니다: " + e.getMessage());
+                        ctx.respond("PR 생성 중 오류가 발생했습니다: " + e.getMessage());
                     } catch (Exception ignored) {}
                 }
             }).start();
