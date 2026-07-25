@@ -18,7 +18,7 @@ public class AgentService {
 
     private final EmbeddingQueryService embeddingQueryService;
     private final GithubAgentTools githubAgentTools;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${openai.chat-url}")
     private String chatUrl;
