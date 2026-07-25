@@ -18,6 +18,7 @@ public class AgentService {
 
     private final EmbeddingQueryService embeddingQueryService;
     private final GithubAgentTools githubAgentTools;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${openai.chat-url}")
@@ -53,7 +54,7 @@ public class AgentService {
                             "parameters", Map.of(
                                     "type", "object",
                                     "properties", Map.of(
-                                            "file_path", Map.of("type", "string", "description", "파일 경로 (예: src/main/java/Payment.java)")
+                                            "file_path", Map.of("type", "string", "description", "파일 경로 (예: payment.py)")
                                     ),
                                     "required", List.of("file_path")
                             )
@@ -130,25 +131,27 @@ public class AgentService {
     // 도구 이름에 따라 실제 실행
     private String executeTool(String toolName, String argsJson) {
         try {
-            Map<String, String> args = objectMapper.readValue(argsJson, Map.class);
+            Map<String, Object> args = objectMapper.readValue(argsJson, Map.class);
             return switch (toolName) {
                 case "search_commits" -> {
-                    String query = args.get("query");
+                    String query = (String) args.get("query");
                     List<Commit> commits = embeddingQueryService.findSimilarCommits(query);
                     StringBuilder sb = new StringBuilder("관련 커밋 검색 결과:\n");
                     commits.forEach(c -> sb
                             .append("- ").append(c.getSha(), 0, 7)
                             .append(" | ").append(c.getMessage()).append("\n")
-                            .append("  변경내용: ").append(c.getDiff() != null ? c.getDiff().substring(0, Math.min(300, c.getDiff().length())) : "(없음)").append("\n")
+                            .append("  변경내용: ").append(c.getDiff() != null
+                                    ? c.getDiff().substring(0, Math.min(300, c.getDiff().length()))
+                                    : "(없음)").append("\n")
                     );
                     yield sb.toString();
                 }
-                case "get_file_content" -> githubAgentTools.getFileContent(args.get("file_path"));
+                case "get_file_content" -> githubAgentTools.getFileContent((String) args.get("file_path"));
                 case "create_pull_request" -> githubAgentTools.createPullRequest(
-                        args.get("file_path"),
-                        args.get("new_content"),
-                        args.get("pr_title"),
-                        args.get("pr_body")
+                        (String) args.get("file_path"),
+                        (String) args.get("new_content"),
+                        (String) args.get("pr_title"),
+                        (String) args.get("pr_body")
                 );
                 default -> "알 수 없는 도구: " + toolName;
             };
