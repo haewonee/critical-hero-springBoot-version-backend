@@ -1,5 +1,10 @@
 package com.devassistant.critical_hero_springboot_version.domain.webhook.service;
 
+import com.devassistant.critical_hero_springboot_version.domain.commit.entity.Commit;
+import com.devassistant.critical_hero_springboot_version.domain.commit.repository.CommitRepository;
+import com.devassistant.critical_hero_springboot_version.domain.embedding.service.EmbeddingCommandService;
+import com.devassistant.critical_hero_springboot_version.domain.github.entity.GithubRepo;
+import com.devassistant.critical_hero_springboot_version.domain.github.repository.GithubRepoRepository;
 import com.devassistant.critical_hero_springboot_version.domain.webhook.dto.GithubWebhookPayload;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -7,6 +12,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -16,17 +22,26 @@ public class WebhookProcessService {
 
     private final WebhookAnalysisService analysisService;
     private final WebhookNotificationService notificationService;
+    private final CommitRepository commitRepository;
+    private final GithubRepoRepository githubRepoRepository;
+    private final EmbeddingCommandService embeddingCommandService;
     private final WebClient githubClient;
     private final String repoFullName;
 
     public WebhookProcessService(
             WebhookAnalysisService analysisService,
             WebhookNotificationService notificationService,
+            CommitRepository commitRepository,
+            GithubRepoRepository githubRepoRepository,
+            EmbeddingCommandService embeddingCommandService,
             @Value("${github.token}") String githubToken,
             @Value("${github.repo}") String repoFullName
     ) {
         this.analysisService = analysisService;
         this.notificationService = notificationService;
+        this.commitRepository = commitRepository;
+        this.githubRepoRepository = githubRepoRepository;
+        this.embeddingCommandService = embeddingCommandService;
         this.repoFullName = repoFullName;
         this.githubClient = WebClient.builder()
                 .baseUrl("https://api.github.com")
@@ -46,12 +61,16 @@ public class WebhookProcessService {
                 String diff = fetchDiff(repo, commit.id);
                 String author = commit.author != null ? commit.author.name : "unknown";
 
+                // 1. DB에 커밋 저장 (RAG 검색에 사용)
+                saveCommitIfAbsent(repo, commit.id, author, commit.message, diff);
+
+                // 2. 위험도 분석
                 WebhookAnalysisService.AnalysisResult result =
                         analysisService.analyze(commit.message, diff);
 
                 log.info("커밋 {} 분석 결과: {}", commit.id.substring(0, 7), result.level());
 
-                // SAFE는 알림 없이 통과
+                // 3. SAFE는 알림 없이 통과
                 if (result.level() == WebhookAnalysisService.RiskLevel.SAFE) continue;
 
                 notificationService.sendAlert(
@@ -61,6 +80,34 @@ public class WebhookProcessService {
                 log.error("커밋 {} 처리 실패", commit.id, e);
             }
         }
+    }
+
+    // 새 커밋을 DB에 저장하고 임베딩 생성
+    private void saveCommitIfAbsent(String repoFullName, String sha, String author, String message, String diff) {
+        if (commitRepository.existsBySha(sha)) {
+            log.info("커밋 이미 존재, 스킵: {}", sha);
+            return;
+        }
+
+        String[] parts = repoFullName.split("/");
+        GithubRepo repo = githubRepoRepository.findByOwnerAndName(parts[0], parts[1])
+                .orElseGet(() -> githubRepoRepository.save(
+                        GithubRepo.builder().owner(parts[0]).name(parts[1]).build()
+                ));
+
+        Commit commit = commitRepository.save(Commit.builder()
+                .repo(repo)
+                .sha(sha)
+                .author(author)
+                .message(message)
+                .diff(diff)
+                .committedAt(LocalDateTime.now())
+                .build());
+
+        log.info("새 커밋 저장: {}", sha);
+
+        // 임베딩 생성 (RAG 검색용)
+        embeddingCommandService.embedSingleCommit(commit);
     }
 
     // GitHub API로 특정 커밋의 diff 조회

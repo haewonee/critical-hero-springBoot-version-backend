@@ -23,6 +23,31 @@ public class EmbeddingCommandService {
     private final OpenAiClient openAiClient;
     private final JdbcTemplate jdbcTemplate;
 
+    // 새로 들어온 커밋 하나만 임베딩 생성 (Webhook용)
+    @Transactional
+    public void embedSingleCommit(Commit commit) {
+        if (commitEmbeddingRepository.existsByCommit(commit)) {
+            log.info("임베딩 이미 존재, 스킵: {}", commit.getSha());
+            return;
+        }
+        String text = commit.getMessage() + "\n" + (commit.getDiff() != null ? commit.getDiff() : "");
+        float[] embedding = openAiClient.createEmbedding(text);
+        String vectorString = openAiClient.toVectorString(embedding);
+
+        try {
+            PGobject pgVector = new PGobject();
+            pgVector.setType("vector");
+            pgVector.setValue(vectorString);
+            jdbcTemplate.update(
+                    "INSERT INTO commit_embeddings (commit_id, embedding, created_at, updated_at) VALUES (?, ?, NOW(), NOW())",
+                    commit.getId(), pgVector
+            );
+            log.info("임베딩 저장 완료: {}", commit.getSha());
+        } catch (Exception e) {
+            throw new RuntimeException("임베딩 저장 실패: " + commit.getSha(), e);
+        }
+    }
+
     @Transactional
     public void embedAllCommits() {
         List<Commit> commits = commitRepository.findAll();
