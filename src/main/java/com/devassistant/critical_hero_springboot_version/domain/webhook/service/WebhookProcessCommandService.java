@@ -18,9 +18,9 @@ import java.util.Map;
 
 @Slf4j
 @Service
-public class WebhookProcessService {
+public class WebhookProcessCommandService {
 
-    private final WebhookAnalysisService analysisService;
+    private final WebhookAnalysisCommandService analysisService;
     private final WebhookNotificationService notificationService;
     private final CommitRepository commitRepository;
     private final GithubRepoRepository githubRepoRepository;
@@ -28,8 +28,8 @@ public class WebhookProcessService {
     private final WebClient githubClient;
     private final String repoFullName;
 
-    public WebhookProcessService(
-            WebhookAnalysisService analysisService,
+    public WebhookProcessCommandService(
+            WebhookAnalysisCommandService analysisService,
             WebhookNotificationService notificationService,
             CommitRepository commitRepository,
             GithubRepoRepository githubRepoRepository,
@@ -85,7 +85,7 @@ public class WebhookProcessService {
                 String author = commit.author != null ? commit.author.name : "unknown";
 
                 // 1. 위험도 분석
-                WebhookAnalysisService.AnalysisResult result =
+                WebhookAnalysisCommandService.AnalysisResult result =
                         analysisService.analyze(commit.message, diff);
 
                 log.info("커밋 {} 분석 결과: {}", commit.id.substring(0, 7), result.level());
@@ -94,7 +94,7 @@ public class WebhookProcessService {
                 saveCommitIfAbsent(repo, commit.id, author, commit.message, diff, result.level().name());
 
                 // 3. SAFE는 알림 없이 통과
-                if (result.level() == WebhookAnalysisService.RiskLevel.SAFE) continue;
+                if (result.level() == WebhookAnalysisCommandService.RiskLevel.SAFE) continue;
 
                 notificationService.sendAlert(
                         commit.id, author, commit.message, commit.url, diff, result

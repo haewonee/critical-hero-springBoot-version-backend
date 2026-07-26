@@ -1,9 +1,7 @@
 package com.devassistant.critical_hero_springboot_version.domain.webhook.controller;
 
 import com.devassistant.critical_hero_springboot_version.domain.webhook.dto.GithubWebhookPayload;
-import com.devassistant.critical_hero_springboot_version.domain.webhook.service.WebhookAnalysisService;
-import com.devassistant.critical_hero_springboot_version.domain.webhook.service.WebhookNotificationService;
-import com.devassistant.critical_hero_springboot_version.domain.webhook.service.WebhookProcessService;
+import com.devassistant.critical_hero_springboot_version.domain.webhook.service.WebhookProcessCommandService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -15,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class WebhookController {
 
-    private final WebhookProcessService webhookProcessService;
+    private final WebhookProcessCommandService webhookProcessCommandService;
 
     @PostMapping("/github")
     public ResponseEntity<Void> handlePush(
@@ -37,7 +35,7 @@ public class WebhookController {
                 payload.ref, payload.commits == null ? 0 : payload.commits.size());
 
         // 비동기 처리 (GitHub은 10초 내 응답 요구)
-        webhookProcessService.process(payload);
+        webhookProcessCommandService.process(payload);
 
         return ResponseEntity.ok().build();
     }

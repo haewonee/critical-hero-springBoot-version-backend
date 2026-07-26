@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class WebhookAnalysisService {
+public class WebhookAnalysisCommandService {
 
     private final OpenAiClient openAiClient;
 

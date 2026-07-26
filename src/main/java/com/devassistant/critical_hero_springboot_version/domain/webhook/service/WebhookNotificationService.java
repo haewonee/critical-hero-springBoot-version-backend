@@ -25,7 +25,7 @@ public class WebhookNotificationService {
     private String alertChannel;
 
     public void sendAlert(String sha, String author, String commitMessage,
-                          String commitUrl, String diff, WebhookAnalysisService.AnalysisResult result) {
+                          String commitUrl, String diff, WebhookAnalysisCommandService.AnalysisResult result) {
         String emoji = switch (result.level()) {
             case CRITICAL -> "🔴";
             case WARNING -> "🟡";
