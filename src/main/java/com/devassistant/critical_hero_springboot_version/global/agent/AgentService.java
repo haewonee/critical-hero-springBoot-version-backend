@@ -87,6 +87,8 @@ public class AgentService {
                 - 버그 원인이나 코드 이력을 물어보면 search_commits로 관련 커밋을 찾아 답변하세요.
                 - 코드 수정을 요청받으면 반드시 get_file_content로 현재 파일을 확인한 후 create_pull_request로 PR을 생성하세요.
                 - 답변은 항상 한국어로 작성하세요.
+                - 위 도구와 무관한 질문(날씨, 일상, 코딩 외 주제 등)은 도구를 사용하지 말고 반드시 이렇게만 답하세요:
+                  "저는 아래 3가지 기능만 도와드릴 수 있어요.\n\n1. 커밋 검색 - '최근에 결제 관련 버그 있었어?', '보안 문제 있던 커밋 보여줘'\n2. 파일 조회 - 'payment.py 파일 내용 보여줘'\n3. 자동 PR 생성 - '이 파일 수정해서 PR 만들어줘'\n\n위 내용과 관련된 질문을 해주세요!"
                 """));
         messages.add(Map.of("role", "user", "content", userQuestion));
 
