@@ -24,17 +24,13 @@ public class WebhookController {
             return ResponseEntity.ok().build();
         }
 
-        // main/master 브랜치가 아닌 push는 무시 (Agent fix/ 브랜치, PR merge 등 무한루프 방지)
         if (payload.ref == null ||
                 (!payload.ref.equals("refs/heads/main") && !payload.ref.equals("refs/heads/master"))) {
             log.info("main 브랜치 아닌 push 무시: {}", payload.ref);
             return ResponseEntity.ok().build();
         }
 
-        log.info("GitHub push 이벤트 수신 - ref: {}, 커밋 수: {}",
-                payload.ref, payload.commits == null ? 0 : payload.commits.size());
 
-        // 비동기 처리 (GitHub은 10초 내 응답 요구)
         webhookProcessCommandService.process(payload);
 
         return ResponseEntity.ok().build();

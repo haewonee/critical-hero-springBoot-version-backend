@@ -6,6 +6,8 @@ import com.devassistant.critical_hero_springboot_version.domain.embedding.servic
 import com.devassistant.critical_hero_springboot_version.domain.github.entity.GithubRepo;
 import com.devassistant.critical_hero_springboot_version.domain.github.repository.GithubRepoRepository;
 import com.devassistant.critical_hero_springboot_version.domain.webhook.dto.GithubWebhookPayload;
+import com.devassistant.critical_hero_springboot_version.domain.webhook.exception.WebhookException;
+import com.devassistant.critical_hero_springboot_version.domain.webhook.exception.code.WebhookErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
@@ -26,7 +28,6 @@ public class WebhookProcessCommandService {
     private final GithubRepoRepository githubRepoRepository;
     private final EmbeddingCommandService embeddingCommandService;
     private final WebClient githubClient;
-    private final String repoFullName;
 
     public WebhookProcessCommandService(
             WebhookAnalysisCommandService analysisService,
@@ -34,15 +35,13 @@ public class WebhookProcessCommandService {
             CommitRepository commitRepository,
             GithubRepoRepository githubRepoRepository,
             EmbeddingCommandService embeddingCommandService,
-            @Value("${github.token}") String githubToken,
-            @Value("${github.repo}") String repoFullName
+            @Value("${github.token}") String githubToken
     ) {
         this.analysisService = analysisService;
         this.notificationService = notificationService;
         this.commitRepository = commitRepository;
         this.githubRepoRepository = githubRepoRepository;
         this.embeddingCommandService = embeddingCommandService;
-        this.repoFullName = repoFullName;
         this.githubClient = WebClient.builder()
                 .baseUrl("https://api.github.com")
                 .defaultHeader("Authorization", "Bearer " + githubToken)
@@ -52,14 +51,18 @@ public class WebhookProcessCommandService {
 
     @Async
     public void process(GithubWebhookPayload payload) {
+
         if (payload.commits == null || payload.commits.isEmpty()) return;
 
-        String repo = (payload.repository != null && payload.repository.fullName != null)
-                ? payload.repository.fullName : repoFullName;
+        if (payload.repository == null || payload.repository.fullName == null) {
+            log.error("payload에 레포지토리 정보 없음. 처리 중단.");
+            throw new WebhookException(WebhookErrorCode.INVALID_PAYLOAD);
+        }
+
+        String repo = payload.repository.fullName;
 
         for (GithubWebhookPayload.CommitPayload commit : payload.commits) {
             try {
-                // 이미 처리된 커밋이면 스킵 (중복 알림 방지)
                 if (commitRepository.existsBySha(commit.id)) {
                     log.info("이미 처리된 커밋 스킵: {}", commit.id);
                     continue;
@@ -68,14 +71,12 @@ public class WebhookProcessCommandService {
                 // GitHub API로 커밋 상세 조회
                 Map commitDetail = fetchCommitDetail(repo, commit.id);
 
-                // Merge 커밋 스킵: parents가 2개 이상이면 머지 커밋
                 List<Map> parents = (List<Map>) commitDetail.get("parents");
                 if (parents != null && parents.size() >= 2) {
                     log.info("Merge 커밋 스킵 (parents={}): {}", parents.size(), commit.id);
                     continue;
                 }
 
-                // Agent 자동 생성 커밋 스킵
                 if (commit.message != null && commit.message.contains("[auto]")) {
                     log.info("Agent 자동 생성 커밋 스킵: {}", commit.id);
                     continue;
@@ -84,16 +85,16 @@ public class WebhookProcessCommandService {
                 String diff = extractDiff(commitDetail);
                 String author = commit.author != null ? commit.author.name : "unknown";
 
-                // 1. 위험도 분석
+                //위험도 분석
                 WebhookAnalysisCommandService.AnalysisResult result =
                         analysisService.analyze(commit.message, diff);
 
                 log.info("커밋 {} 분석 결과: {}", commit.id.substring(0, 7), result.level());
 
-                // 2. DB에 커밋 저장 (분석 결과 포함)
+                //DB에 커밋 저장
                 saveCommitIfAbsent(repo, commit.id, author, commit.message, diff, result.level().name());
 
-                // 3. SAFE는 알림 없이 통과
+                //SAFE는 알림 없이 통과
                 if (result.level() == WebhookAnalysisCommandService.RiskLevel.SAFE) continue;
 
                 notificationService.sendAlert(
