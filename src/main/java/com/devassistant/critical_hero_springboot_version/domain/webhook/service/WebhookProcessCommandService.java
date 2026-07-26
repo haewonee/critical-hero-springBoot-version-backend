@@ -6,6 +6,8 @@ import com.devassistant.critical_hero_springboot_version.domain.embedding.servic
 import com.devassistant.critical_hero_springboot_version.domain.github.entity.GithubRepo;
 import com.devassistant.critical_hero_springboot_version.domain.github.repository.GithubRepoRepository;
 import com.devassistant.critical_hero_springboot_version.domain.webhook.dto.GithubWebhookPayload;
+import com.devassistant.critical_hero_springboot_version.domain.webhook.dto.res.AnalysisResDto;
+import com.devassistant.critical_hero_springboot_version.domain.webhook.enums.RiskLevel;
 import com.devassistant.critical_hero_springboot_version.domain.webhook.exception.WebhookException;
 import com.devassistant.critical_hero_springboot_version.domain.webhook.exception.code.WebhookErrorCode;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +25,7 @@ import java.util.Map;
 public class WebhookProcessCommandService {
 
     private final WebhookAnalysisCommandService analysisService;
-    private final WebhookNotificationService notificationService;
+    private final WebhookNotificationCommandService notificationService;
     private final CommitRepository commitRepository;
     private final GithubRepoRepository githubRepoRepository;
     private final EmbeddingCommandService embeddingCommandService;
@@ -31,7 +33,7 @@ public class WebhookProcessCommandService {
 
     public WebhookProcessCommandService(
             WebhookAnalysisCommandService analysisService,
-            WebhookNotificationService notificationService,
+            WebhookNotificationCommandService notificationService,
             CommitRepository commitRepository,
             GithubRepoRepository githubRepoRepository,
             EmbeddingCommandService embeddingCommandService,
@@ -86,16 +88,14 @@ public class WebhookProcessCommandService {
                 String author = commit.author != null ? commit.author.name : "unknown";
 
                 //위험도 분석
-                WebhookAnalysisCommandService.AnalysisResult result =
-                        analysisService.analyze(commit.message, diff);
+                AnalysisResDto result = analysisService.analyze(commit.message, diff);
 
                 log.info("커밋 {} 분석 결과: {}", commit.id.substring(0, 7), result.level());
 
                 //DB에 커밋 저장
                 saveCommitIfAbsent(repo, commit.id, author, commit.message, diff, result.level().name());
 
-                //SAFE는 알림 없이 통과
-                if (result.level() == WebhookAnalysisCommandService.RiskLevel.SAFE) continue;
+                if (result.level() == RiskLevel.SAFE) continue;
 
                 notificationService.sendAlert(
                         commit.id, author, commit.message, commit.url, diff, result
@@ -110,7 +110,6 @@ public class WebhookProcessCommandService {
     private void saveCommitIfAbsent(String repoFullName, String sha, String author,
                                      String message, String diff, String riskLevel) {
         if (commitRepository.existsBySha(sha)) {
-            // 이미 있으면 riskLevel만 업데이트
             commitRepository.findBySha(sha).ifPresent(c -> {
                 c.updateRiskLevel(riskLevel);
                 commitRepository.save(c);

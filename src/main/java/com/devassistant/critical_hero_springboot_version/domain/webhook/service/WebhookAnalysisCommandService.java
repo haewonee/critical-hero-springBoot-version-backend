@@ -1,5 +1,7 @@
 package com.devassistant.critical_hero_springboot_version.domain.webhook.service;
 
+import com.devassistant.critical_hero_springboot_version.domain.webhook.dto.res.AnalysisResDto;
+import com.devassistant.critical_hero_springboot_version.domain.webhook.enums.RiskLevel;
 import com.devassistant.critical_hero_springboot_version.global.client.OpenAiClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,13 +14,7 @@ public class WebhookAnalysisCommandService {
 
     private final OpenAiClient openAiClient;
 
-    public enum RiskLevel {
-        CRITICAL, WARNING, SAFE
-    }
-
-    public record AnalysisResult(RiskLevel level, String reason) {}
-
-    public AnalysisResult analyze(String commitMessage, String diff) {
+    public AnalysisResDto analyze(String commitMessage, String diff) {
         String systemPrompt = """
                 당신은 코드 보안 및 품질 전문가입니다.
                 커밋 메시지와 diff를 보고 위험도를 3단계로 판단하세요.
@@ -66,17 +62,18 @@ public class WebhookAnalysisCommandService {
                 %s
                 """, commitMessage, diff != null ? diff : "(diff 없음)");
 
+        //GPT API 호출
         String response = openAiClient.analyze(systemPrompt, userMessage).trim();
         log.info("GPT 위험도 분석 결과: {}", response);
 
         if (response.startsWith("CRITICAL")) {
             String reason = response.substring("CRITICAL:".length()).trim();
-            return new AnalysisResult(RiskLevel.CRITICAL, reason);
+            return new AnalysisResDto(RiskLevel.CRITICAL, reason);
         } else if (response.startsWith("WARNING")) {
             String reason = response.substring("WARNING:".length()).trim();
-            return new AnalysisResult(RiskLevel.WARNING, reason);
+            return new AnalysisResDto(RiskLevel.WARNING, reason);
         } else {
-            return new AnalysisResult(RiskLevel.SAFE, "안전한 커밋입니다.");
+            return new AnalysisResDto(RiskLevel.SAFE, "안전한 커밋입니다.");
         }
     }
 }

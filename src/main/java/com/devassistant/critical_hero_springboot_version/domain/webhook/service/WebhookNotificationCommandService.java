@@ -1,5 +1,6 @@
 package com.devassistant.critical_hero_springboot_version.domain.webhook.service;
 
+import com.devassistant.critical_hero_springboot_version.domain.webhook.dto.res.AnalysisResDto;
 import com.slack.api.bolt.App;
 import com.slack.api.methods.SlackApiException;
 import com.slack.api.model.block.ActionsBlock;
@@ -17,7 +18,7 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class WebhookNotificationService {
+public class WebhookNotificationCommandService {
 
     private final App slackApp;
 
@@ -25,7 +26,7 @@ public class WebhookNotificationService {
     private String alertChannel;
 
     public void sendAlert(String sha, String author, String commitMessage,
-                          String commitUrl, String diff, WebhookAnalysisCommandService.AnalysisResult result) {
+                          String commitUrl, String diff, AnalysisResDto result) {
         String emoji = switch (result.level()) {
             case CRITICAL -> "🔴";
             case WARNING -> "🟡";
