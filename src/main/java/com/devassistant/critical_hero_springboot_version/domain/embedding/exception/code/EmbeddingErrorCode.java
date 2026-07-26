@@ -9,8 +9,7 @@ import org.springframework.http.HttpStatus;
 @AllArgsConstructor
 public enum EmbeddingErrorCode implements BaseErrorCode {
 
-    EMBEDDING_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "EMBEDDING500_1", "임베딩 생성 중 오류가 발생했습니다."),
-    SIMILAR_COMMIT_NOT_FOUND(HttpStatus.NOT_FOUND, "EMBEDDING404_1", "유사한 커밋을 찾을 수 없습니다.");
+    EMBEDDING_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "EMBEDDING500_1", "임베딩 생성 중 오류가 발생했습니다.");
 
     private final HttpStatus status;
     private final String code;

@@ -5,16 +5,6 @@ import com.devassistant.critical_hero_springboot_version.domain.commit.entity.Co
 
 public class CommitConverter {
 
-    public static CommitResDto.Detail toDetail(Commit commit) {
-        return new CommitResDto.Detail(
-                commit.getSha(),
-                commit.getAuthor(),
-                commit.getMessage(),
-                commit.getDiff(),
-                commit.getCommittedAt()
-        );
-    }
-
     public static CommitResDto.Summary toSummary(Commit commit) {
         return new CommitResDto.Summary(
                 commit.getSha(),

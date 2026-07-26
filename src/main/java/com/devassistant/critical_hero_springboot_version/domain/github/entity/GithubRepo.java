@@ -29,8 +29,4 @@ public class GithubRepo extends BaseEntity {
         this.owner = owner;
         this.name = name;
     }
-
-    public String getFullName() {
-        return owner + "/" + name;
-    }
 }

@@ -4,14 +4,6 @@ import java.time.LocalDateTime;
 
 public class CommitResDto {
 
-    public record Detail(
-            String sha,
-            String author,
-            String message,
-            String diff,
-            LocalDateTime committedAt
-    ) {}
-
     public record Summary(
             String sha,
             String author,
